@@ -2,8 +2,10 @@ package statsd
 
 import (
 	"fmt"
+	"net"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/atlassian/gostatsd/backend"
@@ -11,8 +13,6 @@ import (
 	"github.com/atlassian/gostatsd/cloudprovider"
 	_ "github.com/atlassian/gostatsd/cloudprovider/providers" // import cloud providers for initialisation
 	"github.com/atlassian/gostatsd/types"
-
-	"strings"
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -133,6 +133,14 @@ func AddFlags(fs *pflag.FlagSet) {
 
 // Run runs the server until context signals done.
 func (s *Server) Run(ctx context.Context) error {
+	return s.runWithCustomSocket(ctx, func() (net.PacketConn, error) {
+		return net.ListenPacket("udp", s.MetricsAddr)
+	})
+}
+
+type socketFactory func() (net.PacketConn, error)
+
+func (s *Server) runWithCustomSocket(ctx context.Context, sf socketFactory) error {
 	// Start the metric aggregator
 	backends := make([]backend.MetricSender, 0, len(s.Backends))
 	for _, backendName := range s.Backends {
@@ -164,7 +172,7 @@ func (s *Server) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	receiver := NewMetricReceiver(s.MetricsAddr, s.Namespace, s.MaxReaders, s.MaxMessengers, s.DefaultTags, cloud, HandlerFunc(f))
+	receiver := NewMetricReceiver(sf, s.Namespace, s.MaxReaders, s.MaxMessengers, s.DefaultTags, cloud, HandlerFunc(f))
 	go receiver.ListenAndReceive()
 
 	// Start the console(s)

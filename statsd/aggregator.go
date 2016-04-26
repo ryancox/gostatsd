@@ -5,7 +5,6 @@ import (
 	"math"
 	"runtime"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -179,6 +178,8 @@ func (a *MetricAggregator) flush(now func() time.Time) (metrics types.MetricMap)
 		a.Stats.BadLines += badLines.Value
 	}
 
+	log.Infof("total_num_stats: %d", a.NumStats)
+
 	a.LastFlush = now()
 
 	return types.MetricMap{
@@ -323,9 +324,7 @@ func (a *MetricAggregator) receiveMetric(m *types.Metric, now time.Time) {
 	a.Lock()
 	defer a.Unlock()
 
-	if !strings.HasPrefix(m.Name, internalStatName("")) {
-		a.NumStats++
-	}
+	a.NumStats++
 	tagsKey := m.Tags.String()
 
 	switch m.Type {

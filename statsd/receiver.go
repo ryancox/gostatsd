@@ -38,7 +38,7 @@ func (f HandlerFunc) HandleMetric(m *types.Metric) {
 // MetricReceiver receives data on its listening port and converts lines in to Metrics.
 // For each types.Metric it calls r.Handler.HandleMetric()
 type MetricReceiver struct {
-	Addr          string                  // UDP address on which to listen for metrics
+	SF            socketFactory
 	Cloud         cloudprovider.Interface // Cloud provider interface
 	Handler       Handler                 // handler to invoke
 	MaxReaders    int                     // Maximum number of workers
@@ -53,9 +53,9 @@ type message struct {
 }
 
 // NewMetricReceiver initialises a new MetricReceiver.
-func NewMetricReceiver(addr, ns string, maxReaders, maxMessengers int, tags []string, cloud cloudprovider.Interface, handler Handler) *MetricReceiver {
+func NewMetricReceiver(sf socketFactory, ns string, maxReaders, maxMessengers int, tags []string, cloud cloudprovider.Interface, handler Handler) *MetricReceiver {
 	return &MetricReceiver{
-		Addr:          addr,
+		SF:            sf,
 		Cloud:         cloud,
 		Handler:       handler,
 		MaxReaders:    maxReaders,
@@ -68,11 +68,7 @@ func NewMetricReceiver(addr, ns string, maxReaders, maxMessengers int, tags []st
 // ListenAndReceive listens on the UDP network address of srv.Addr and then calls
 // Receive to handle the incoming datagrams. If Addr is blank then DefaultMetricsAddr is used.
 func (mr *MetricReceiver) ListenAndReceive() error {
-	addr := mr.Addr
-	if addr == "" {
-		addr = defaultMetricsAddr
-	}
-	c, err := net.ListenPacket("udp", addr)
+	c, err := mr.SF()
 	if err != nil {
 		return err
 	}

@@ -115,28 +115,25 @@ func BenchmarkParseLineCounterWithDefaultTagsAndTagsAndNameSpace(b *testing.B) {
 	benchmarkParseLine(&MetricReceiver{Namespace: "stats", Tags: []string{"env:foo", "foo:bar"}}, "foo.bar.baz:2|c|#foo:bar,baz", b)
 }
 
-type FakeAddr struct{}
+type fakeAddr struct{}
 
-func (fa FakeAddr) Network() string { return "udp" }
-func (fa FakeAddr) String() string  { return ":8181" }
+func (fa fakeAddr) Network() string { return "udp" }
+func (fa fakeAddr) String() string  { return "127.0.0.1:8181" }
 
-type FakePacketConn struct{}
+var fakeMetric = []byte("foo.bar.baz:2|c")
 
-func (fpc FakePacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
-	b = []byte("foo.bar.baz:2|c")
-	return len(b), FakeAddr{}, nil
+type fakePacketConn struct{}
+
+func (fpc fakePacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n := copy(b, fakeMetric)
+	return n, fakeAddr{}, nil
 }
-func (fpc FakePacketConn) WriteTo(b []byte, addr net.Addr) (n int, err error) { return }
-func (fpc FakePacketConn) Close() error                                       { return nil }
-func (fpc FakePacketConn) LocalAddr() net.Addr                                { return FakeAddr{} }
-func (fpc FakePacketConn) SetDeadline(t time.Time) error                      { return nil }
-func (fpc FakePacketConn) SetReadDeadline(t time.Time) error                  { return nil }
-func (fpc FakePacketConn) SetWriteDeadline(t time.Time) error                 { return nil }
-
-func manageQueue(mq messageQueue) {
-	for range mq {
-	}
-}
+func (fpc fakePacketConn) WriteTo(b []byte, addr net.Addr) (int, error) { return 0, nil }
+func (fpc fakePacketConn) Close() error                                 { return nil }
+func (fpc fakePacketConn) LocalAddr() net.Addr                          { return fakeAddr{} }
+func (fpc fakePacketConn) SetDeadline(t time.Time) error                { return nil }
+func (fpc fakePacketConn) SetReadDeadline(t time.Time) error            { return nil }
+func (fpc fakePacketConn) SetWriteDeadline(t time.Time) error           { return nil }
 
 // Need to change MetricReceiver.receive to a finite loop to be able to run the benchmark
 //func BenchmarkReceive(b *testing.B) {
