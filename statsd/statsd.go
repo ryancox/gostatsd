@@ -133,14 +133,14 @@ func AddFlags(fs *pflag.FlagSet) {
 
 // Run runs the server until context signals done.
 func (s *Server) Run(ctx context.Context) error {
-	return s.runWithCustomSocket(ctx, func() (net.PacketConn, error) {
+	return s.RunWithCustomSocket(ctx, func() (net.PacketConn, error) {
 		return net.ListenPacket("udp", s.MetricsAddr)
 	})
 }
 
 type socketFactory func() (net.PacketConn, error)
 
-func (s *Server) runWithCustomSocket(ctx context.Context, sf socketFactory) error {
+func (s *Server) RunWithCustomSocket(ctx context.Context, sf socketFactory) error {
 	// Start the metric aggregator
 	backends := make([]backend.MetricSender, 0, len(s.Backends))
 	for _, backendName := range s.Backends {

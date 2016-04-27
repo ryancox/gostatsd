@@ -30,7 +30,7 @@ func TestStatsdThroughput(t *testing.T) {
 	}
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelFunc()
-	err := s.runWithCustomSocket(ctx, fakeSocketFactory)
+	err := s.RunWithCustomSocket(ctx, fakeSocketFactory)
 	if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 		t.Errorf("statsd run failed: %v", err)
 	}
