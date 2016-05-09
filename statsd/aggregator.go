@@ -322,6 +322,5 @@ func (a *aggregator) Receive(m *types.Metric, now time.Time) {
 
 // ReceiveEvent collects an incoming event.
 func (a *aggregator) ReceiveEvent(m *types.Event) {
-	a.NumStats++
 	a.Events = append(a.Events, *m)
 }
