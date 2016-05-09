@@ -20,6 +20,7 @@ type ProcessFunc func(*types.MetricMap)
 // Incoming metrics should be passed via Receive function.
 type Aggregator interface {
 	Receive(*types.Metric, time.Time)
+	ReceiveEvent(*types.Event)
 	Flush(func() time.Time) *types.MetricMap
 	Process(ProcessFunc)
 	Reset(time.Time)
@@ -163,6 +164,7 @@ func (a *aggregator) Flush(now func() time.Time) *types.MetricMap {
 		ProcessingTime: a.ProcessingTime,
 		FlushInterval:  flushInterval,
 		Counters:       a.Counters.Clone(),
+		Events:         a.Events.Clone(),
 		Timers:         a.Timers.Clone(),
 		Gauges:         a.Gauges.Clone(),
 		Sets:           a.Sets.Clone(),
@@ -196,6 +198,8 @@ func (a *aggregator) Reset(now time.Time) {
 			a.Counters[key][tagsKey] = types.Counter{Interval: interval}
 		}
 	})
+
+	a.Events = types.Events{}
 
 	a.Timers.Each(func(key, tagsKey string, timer types.Timer) {
 		if a.isExpired(now, timer.Timestamp) {
@@ -314,4 +318,10 @@ func (a *aggregator) Receive(m *types.Metric, now time.Time) {
 	default:
 		log.Errorf("Unknow metric type %s for %s", m.Type, m.Name)
 	}
+}
+
+// ReceiveEvent collects an incoming event.
+func (a *aggregator) ReceiveEvent(m *types.Event) {
+	a.NumStats++
+	a.Events = append(a.Events, *m)
 }

@@ -19,17 +19,10 @@ import (
 
 const packetSizeUDP = 1500
 
-// Handler interface can be used to handle metrics for a Receiver.
+// Handler interface can be used to handle metrics and events for a Receiver.
 type Handler interface {
-	HandleMetric(context.Context, *types.Metric) error
-}
-
-// The HandlerFunc type is an adapter to allow the use of ordinary functions as metric handlers.
-type HandlerFunc func(context.Context, *types.Metric) error
-
-// HandleMetric calls f(m).
-func (f HandlerFunc) HandleMetric(ctx context.Context, m *types.Metric) error {
-	return f(ctx, m)
+	DispatchMetric(context.Context, *types.Metric) error
+	DispatchEvent(context.Context, *types.Event) error
 }
 
 // Receiver receives data on its PacketConn and converts lines into Metrics.
@@ -133,7 +126,7 @@ func (mr *metricReceiver) handleMessage(ctx context.Context, addr net.Addr, msg 
 		}
 
 		if len(line) > 1 {
-			metric, err := mr.parseLine(line)
+			metric, event, err := mr.parseLine(line)
 			if err != nil {
 				// logging as debug to avoid spamming logs when a bad actor sends
 				// badly formatted messages
@@ -145,10 +138,19 @@ func (mr *metricReceiver) handleMessage(ctx context.Context, addr net.Addr, msg 
 				triedToGetTags = true
 				additionalTags = mr.getAdditionalTags(addr.String())
 			}
-			if len(additionalTags) > 0 {
+			if metric != nil {
+				metric.Tags = append(metric.Tags, mr.tags...)
 				metric.Tags = append(metric.Tags, additionalTags...)
+				err = mr.handler.DispatchMetric(ctx, metric)
+			} else {
+				event.Tags = append(event.Tags, mr.tags...)
+				event.Tags = append(event.Tags, additionalTags...)
+				if event.DateHappened == 0 {
+					event.DateHappened = time.Now().Unix()
+				}
+				err = mr.handler.DispatchEvent(ctx, event)
 			}
-			if err := mr.handler.HandleMetric(ctx, metric); err != nil {
+			if err != nil {
 				return err
 			}
 			numMetrics++
@@ -186,14 +188,8 @@ func (mr *metricReceiver) getAdditionalTags(addr string) types.Tags {
 	return nil
 }
 
-// ParseLine with lexer impl.
-func (mr *metricReceiver) parseLine(line []byte) (*types.Metric, error) {
-	llen := len(line)
-	if llen == 0 {
-		return nil, nil
-	}
-	metric := &types.Metric{}
-	metric.Tags = append(metric.Tags, mr.tags...)
-	l := &lexer{input: line, len: llen, m: metric, namespace: mr.namespace}
-	return l.run()
+// parseLine with lexer impl.
+func (mr *metricReceiver) parseLine(line []byte) (*types.Metric, *types.Event, error) {
+	l := lexer{}
+	return l.run(line, mr.namespace)
 }

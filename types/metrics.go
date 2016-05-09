@@ -17,6 +17,8 @@ const (
 	_ = iota
 	// COUNTER is statsd counter type
 	COUNTER MetricType = iota
+	// EVENT is DataDog event type
+	EVENT
 	// TIMER is statsd timer type
 	TIMER
 	// GAUGE is statsd gauge type
@@ -39,6 +41,8 @@ func (m MetricType) String() string {
 		return "gauge"
 	case TIMER:
 		return "timer"
+	case EVENT:
+		return "event"
 	case COUNTER:
 		return "counter"
 	}
@@ -83,6 +87,7 @@ type MetricMap struct {
 	ProcessingTime time.Duration
 	FlushInterval  time.Duration
 	Counters       Counters
+	Events         Events
 	Timers         Timers
 	Gauges         Gauges
 	Sets           Sets
@@ -93,6 +98,7 @@ func (m MetricMap) String() string {
 	m.Counters.Each(func(k, tags string, counter Counter) {
 		fmt.Fprintf(buf, "stats.counter.%s: %d tags=%s\n", k, counter.Value, tags)
 	})
+	// TODO print events
 	m.Timers.Each(func(k, tags string, timer Timer) {
 		for _, value := range timer.Values {
 			fmt.Fprintf(buf, "stats.timer.%s: %f tags=%s\n", k, value, tags)

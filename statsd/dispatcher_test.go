@@ -23,6 +23,11 @@ func (a *testAggregator) Receive(m *types.Metric, t time.Time) {
 	defer a.af.Mutex.Unlock()
 	a.af.receiveInvocations[a.agrNumber]++
 }
+func (a *testAggregator) ReceiveEvent(e *types.Event) {
+	a.af.Mutex.Lock()
+	defer a.af.Mutex.Unlock()
+	a.af.receiveEventInvocations[a.agrNumber]++
+}
 
 func (a *testAggregator) Flush(f func() time.Time) *types.MetricMap {
 	a.af.Mutex.Lock()
@@ -46,17 +51,19 @@ func (a *testAggregator) Reset(t time.Time) {
 
 type testAggregatorFactory struct {
 	sync.Mutex
-	receiveInvocations map[int]int
-	flushInvocations   map[int]int
-	processInvocations map[int]int
-	resetInvocations   map[int]int
-	numAgrs            int
+	receiveInvocations      map[int]int
+	receiveEventInvocations map[int]int
+	flushInvocations        map[int]int
+	processInvocations      map[int]int
+	resetInvocations        map[int]int
+	numAgrs                 int
 }
 
 func (af *testAggregatorFactory) Create() Aggregator {
 	agrNumber := af.numAgrs
 	af.numAgrs++
 	af.receiveInvocations[agrNumber] = 0
+	af.receiveEventInvocations[agrNumber] = 0
 	af.flushInvocations[agrNumber] = 0
 	af.processInvocations[agrNumber] = 0
 	af.resetInvocations[agrNumber] = 0
@@ -75,10 +82,11 @@ func (af *testAggregatorFactory) Create() Aggregator {
 
 func newTestFactory() *testAggregatorFactory {
 	return &testAggregatorFactory{
-		receiveInvocations: make(map[int]int),
-		flushInvocations:   make(map[int]int),
-		processInvocations: make(map[int]int),
-		resetInvocations:   make(map[int]int),
+		receiveInvocations:      make(map[int]int),
+		receiveEventInvocations: make(map[int]int),
+		flushInvocations:        make(map[int]int),
+		processInvocations:      make(map[int]int),
+		resetInvocations:        make(map[int]int),
 	}
 }
 

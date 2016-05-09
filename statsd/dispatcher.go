@@ -3,6 +3,7 @@ package statsd
 import (
 	"hash/adler32"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/atlassian/gostatsd/types"
@@ -13,8 +14,8 @@ import (
 
 // Dispatcher is responsible for managing Aggregators' lifecycle and dispatching metrics among them.
 type Dispatcher interface {
+	Handler
 	Run(context.Context) error
-	DispatchMetric(context.Context, *types.Metric) error
 	Flush(context.Context) <-chan *types.MetricMap
 	Process(context.Context, ProcessFunc) *sync.WaitGroup
 }
@@ -48,11 +49,14 @@ type worker struct {
 	aggr         Aggregator
 	flushChan    chan *flushCommand
 	metricsQueue chan *types.Metric
+	eventsQueue  chan *types.Event
 	processChan  chan *processCommand
 }
 
 type dispatcher struct {
-	workers map[uint16]*worker
+	numWorkers  int
+	eventWorker uint32
+	workers     map[uint16]*worker
 }
 
 // NewDispatcher creates a new Dispatcher with provided configuration.
@@ -70,14 +74,15 @@ func NewDispatcher(numWorkers int, perWorkerBufferSize int, af AggregatorFactory
 		}
 	}
 	return &dispatcher{
-		workers: workers,
+		numWorkers: numWorkers,
+		workers:    workers,
 	}
 }
 
 // Run runs the Dispatcher.
 func (d *dispatcher) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	wg.Add(len(d.workers))
+	wg.Add(d.numWorkers)
 	for _, worker := range d.workers {
 		go worker.work(&wg)
 	}
@@ -96,7 +101,7 @@ func (d *dispatcher) Run(ctx context.Context) error {
 // DispatchMetric dispatches metric to a corresponding Aggregator.
 func (d *dispatcher) DispatchMetric(ctx context.Context, m *types.Metric) error {
 	hash := adler32.Checksum([]byte(m.Name))
-	worker := d.workers[uint16(hash%uint32(len(d.workers)))]
+	worker := d.workers[uint16(hash%uint32(d.numWorkers))]
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -105,20 +110,31 @@ func (d *dispatcher) DispatchMetric(ctx context.Context, m *types.Metric) error 
 	}
 }
 
+// DispatchEvent dispatches event to a corresponding Aggregator.
+func (d *dispatcher) DispatchEvent(ctx context.Context, e *types.Event) error {
+	worker := d.workers[uint16(atomic.AddUint32(&d.eventWorker, 1)%uint32(d.numWorkers))]
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case worker.eventsQueue <- e:
+		return nil
+	}
+}
+
 // Flush calls Flush on all managed Aggregators and returns results.
 func (d *dispatcher) Flush(ctx context.Context) <-chan *types.MetricMap {
-	results := make(chan *types.MetricMap, len(d.workers)) // Enough capacity not to block workers
+	results := make(chan *types.MetricMap, d.numWorkers) // Enough capacity not to block workers
 	cmd := &flushCommand{
 		ctx:    ctx,
 		result: results,
 	}
-	cmd.wg.Add(len(d.workers))
+	cmd.wg.Add(d.numWorkers)
 	flushesSent := 0
 loop:
 	for _, worker := range d.workers {
 		select {
 		case <-ctx.Done():
-			cmd.wg.Add(flushesSent - len(d.workers)) // Not all flushes have been sent, should decrement the WG counter.
+			cmd.wg.Add(flushesSent - d.numWorkers) // Not all flushes have been sent, should decrement the WG counter.
 			break loop
 		case worker.flushChan <- cmd:
 			flushesSent++
@@ -139,13 +155,13 @@ func (d *dispatcher) Process(ctx context.Context, f ProcessFunc) *sync.WaitGroup
 	cmd := &processCommand{
 		f: f,
 	}
-	cmd.wg.Add(len(d.workers))
+	cmd.wg.Add(d.numWorkers)
 	cmdSent := 0
 loop:
 	for _, worker := range d.workers {
 		select {
 		case <-ctx.Done():
-			cmd.wg.Add(cmdSent - len(d.workers)) // Not all commands have been sent, should decrement the WG counter.
+			cmd.wg.Add(cmdSent - d.numWorkers) // Not all commands have been sent, should decrement the WG counter.
 			break loop
 		case worker.processChan <- cmd:
 			cmdSent++
@@ -166,6 +182,8 @@ func (w *worker) work(wg *sync.WaitGroup) {
 				return
 			}
 			w.aggr.Receive(metric, time.Now())
+		case event := <-w.eventsQueue:
+			w.aggr.ReceiveEvent(event)
 		case cmd := <-w.flushChan:
 			w.executeFlush(cmd)
 		case cmd := <-w.processChan:

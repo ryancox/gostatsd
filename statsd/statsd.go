@@ -203,7 +203,7 @@ func (s *Server) RunWithCustomSocket(ctx context.Context, sf SocketFactory) erro
 		}
 	}()
 
-	receiver := NewMetricReceiver(s.Namespace, s.DefaultTags, cloud, HandlerFunc(dispatcher.DispatchMetric))
+	receiver := NewMetricReceiver(s.Namespace, s.DefaultTags, cloud, dispatcher)
 	wgReceiver.Add(s.MaxReaders)
 	for r := 0; r < s.MaxReaders; r++ {
 		go func() {
