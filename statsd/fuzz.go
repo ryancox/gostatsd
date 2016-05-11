@@ -42,9 +42,9 @@ func Fuzz(data []byte) int {
 	mr := &metricReceiver{}
 	metric, err := mr.parseLine(data)
 	if err != nil {
-		//if metric != nil {
-		//	panic("metric != nil on error")
-		//}
+		if metric != nil {
+			panic("metric != nil on error")
+		}
 		return 0
 	}
 	renderLine(metric)

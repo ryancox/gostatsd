@@ -109,4 +109,8 @@ clean:
 	-docker rm $(docker ps -a -f 'status=exited' -q)
 	-docker rmi $(docker images -f 'dangling=true' -q)
 
+fuzz:
+	go-fuzz-build github.com/atlassian/gostatsd/statsd
+	go-fuzz -bin=statsd-fuzz.zip -workdir=statsd/testdata
+
 .PHONY: build
