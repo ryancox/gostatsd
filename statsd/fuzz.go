@@ -47,6 +47,12 @@ func Fuzz(data []byte) int {
 		}
 		return 0
 	}
-	renderLine(metric)
+	renderedLine, err := renderLine(metric)
+	if err != nil {
+		return 0
+	}
+	if string(data) != renderedLine {
+		return 0
+	}
 	return 1
 }

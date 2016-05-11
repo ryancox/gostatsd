@@ -5,24 +5,6 @@ import (
 	"testing"
 )
 
-/*
-func TestEmpty(t *testing.T) {
-	mr := &metricReceiver{}
-	m, err := mr.parseLine([]byte{})
-	fmt.Printf("Parsing empty byte array got back %v\n", err)
-	if err == nil {
-		t.Errorf("Attempting to parse empty byte slice and did not get error back. Result [%v]", m)
-	}
-}
-
-func TestNil(t *testing.T) {
-	mr := &metricReceiver{}
-	m, err := mr.parseLine(nil)
-	if err == nil {
-		t.Errorf("Attempting to parse nil slice and did not get error back. Result [%v]", m)
-	}
-}
-*/
 func TestRoundtrip(t *testing.T) {
 	//metric := &types.Metric{Name: "foo.bar.baz", Value: 2, Type: types.COUNTER}
 	line := []byte("foo.bar.baz:2|c")
